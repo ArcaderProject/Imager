@@ -76,3 +76,23 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Unbundle host libraries from AppImage
+        if: matrix.platform == 'ubuntu-24.04'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APP=$(ls "$PWD"/src-tauri/target/release/bundle/appimage/*.AppImage | head -1)
+          workdir=$(mktemp -d)
+          ( cd "$workdir" && "$APP" --appimage-extract >/dev/null )
+          for lib in \
+            libwayland-client.so.0 libwayland-server.so.0 libwayland-egl.so.1 libwayland-cursor.so.0 \
+            libudev.so.1 libsystemd.so.0 \
+            libGL.so.1 libEGL.so.1 libGLdispatch.so.0 libGLX.so.0 libgbm.so.1 libdrm.so.2; do
+            find "$workdir/squashfs-root" -name "$lib" -delete
+          done
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O "$workdir/appimagetool"
+          chmod +x "$workdir/appimagetool"
+          ARCH=x86_64 "$workdir/appimagetool" --appimage-extract-and-run "$workdir/squashfs-root" "$APP"
+          gh release upload "$GITHUB_REF_NAME" "$APP" --clobber
