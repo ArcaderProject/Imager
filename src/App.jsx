@@ -24,7 +24,7 @@ const App = () => {
     const [drivesLoading, setDrivesLoading] = useState(false);
     const [selected, setSelected] = useState(null);
     const [showPicker, setShowPicker] = useState(false);
-    const [source, setSource] = useState({kind: "arcader"});
+    const [source, setSource] = useState({kind: "arcader", arch: "amd64"});
     const [showSource, setShowSource] = useState(false);
     const [stage, setStage] = useState(IDLE);
     const [progress, setProgress] = useState({
@@ -79,17 +79,25 @@ const App = () => {
         refreshDrives();
     }, [refreshDrives]);
 
+    const arcaderBuild = useCallback(() => {
+        if (!os || !os.builds || os.builds.length === 0) return null;
+        return os.builds.find((b) => b.arch === source.arch) || os.builds[0];
+    }, [os, source.arch]);
+
     const resolveSource = useCallback(() => {
         if (source.kind === "local") {
             return {path: source.path, label: source.name};
         }
-        return os ? {path: os.url, label: `${os.name} ${os.version}`} : null;
-    }, [source, os]);
+        const build = arcaderBuild();
+        return build
+            ? {path: build.url, label: `${os.name} ${os.version} (${build.label})`}
+            : null;
+    }, [source, os, arcaderBuild]);
 
-    const sourceReady = source.kind === "local" || !!os;
+    const sourceReady = source.kind === "local" || !!arcaderBuild();
 
-    const chooseArcader = useCallback(() => {
-        setSource({kind: "arcader"});
+    const chooseArcader = useCallback((arch) => {
+        setSource({kind: "arcader", arch});
         setShowSource(false);
     }, []);
 
@@ -187,7 +195,7 @@ const App = () => {
                 {source.kind === "local"
                     ? `${formatBytes(source.size)} · local image`
                     : os
-                        ? `${os.version} · Stable`
+                        ? `${os.version} · ${arcaderBuild()?.label ?? ""} · Stable`
                         : osError
                             ? "Update check failed"
                             : "Checking latest version…"}
@@ -256,7 +264,8 @@ const App = () => {
                         key="source"
                         os={os}
                         osError={osError}
-                        active={source.kind}
+                        activeKind={source.kind}
+                        activeArch={source.arch}
                         onClose={() => setShowSource(false)}
                         onPickArcader={chooseArcader}
                         onPickLocal={chooseLocal}
@@ -287,7 +296,12 @@ const App = () => {
                                     name: source.name,
                                     detail: `${formatBytes(source.size)} · local image`,
                                 }
-                                : {name: os?.name, detail: os?.version}
+                                : {
+                                    name: os?.name,
+                                    detail: `${os?.version ?? ""}${
+                                        arcaderBuild() ? ` · ${arcaderBuild().label}` : ""
+                                    }`,
+                                }
                         }
                         drive={selected}
                         onCancel={() => setStage(IDLE)}

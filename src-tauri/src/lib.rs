@@ -24,14 +24,24 @@ pub struct FlashState {
 }
 
 #[derive(Serialize, Clone)]
-struct OsInfo {
-    name: String,
-    version: String,
+struct OsBuild {
+    arch: String,
+    label: String,
     url: String,
 }
 
+#[derive(Serialize, Clone)]
+struct OsInfo {
+    name: String,
+    version: String,
+    builds: Vec<OsBuild>,
+}
+
 const OS_RELEASES_API: &str = "https://api.github.com/repos/ArcaderProject/System/releases/latest";
-const OS_ASSET_NAME: &str = "arcader-kiosk-amd64.iso";
+const OS_ASSETS: &[(&str, &str, &str)] = &[
+    ("amd64", "64-bit", "arcader-kiosk-amd64.iso"),
+    ("i386", "32-bit", "arcader-kiosk-i386.iso"),
+];
 
 #[tauri::command]
 async fn get_os_info() -> Result<OsInfo, String> {
@@ -61,21 +71,40 @@ async fn get_os_info() -> Result<OsInfo, String> {
         .ok_or("latest release has no tag_name")?
         .to_string();
 
-    let url = release
+    let assets = release
         .get("assets")
         .and_then(|a| a.as_array())
-        .into_iter()
-        .flatten()
-        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some(OS_ASSET_NAME))
-        .and_then(|a| a.get("browser_download_url"))
-        .and_then(|u| u.as_str())
-        .ok_or_else(|| format!("release {version} has no {OS_ASSET_NAME} asset"))?
-        .to_string();
+        .map(|a| a.as_slice())
+        .unwrap_or(&[]);
+
+    let asset_url = |name: &str| -> Option<String> {
+        assets
+            .iter()
+            .find(|a| a.get("name").and_then(|n| n.as_str()) == Some(name))
+            .and_then(|a| a.get("browser_download_url"))
+            .and_then(|u| u.as_str())
+            .map(|s| s.to_string())
+    };
+
+    let builds: Vec<OsBuild> = OS_ASSETS
+        .iter()
+        .filter_map(|(arch, label, name)| {
+            asset_url(name).map(|url| OsBuild {
+                arch: arch.to_string(),
+                label: label.to_string(),
+                url,
+            })
+        })
+        .collect();
+
+    if builds.is_empty() {
+        return Err(format!("release {version} has no Arcader kiosk ISO assets"));
+    }
 
     Ok(OsInfo {
         name: "Arcader OS".into(),
         version,
-        url,
+        builds,
     })
 }
 

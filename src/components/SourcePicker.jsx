@@ -2,12 +2,10 @@ import {motion} from "framer-motion";
 import {Gamepad2, FlaskConical, Disc, X, Check} from "lucide-react";
 import Modal from "./Modal.jsx";
 
-const SourcePicker = ({os, osError, active, onPickArcader, onPickLocal, onClose, onRetry}) => {
-    const arcaderMeta = os
-        ? `${os.version} · Stable`
-        : osError
-            ? "Update check failed · tap to retry"
-            : "Checking latest version…";
+const SourcePicker = ({os, osError, activeKind, activeArch, onPickArcader, onPickLocal, onClose, onRetry}) => {
+    const arcaderMeta = osError
+        ? "Update check failed · tap to retry"
+        : "Checking latest version…";
     return (
         <Modal variant="sheet" onClose={onClose}>
             <div className="sheet__head">
@@ -17,20 +15,41 @@ const SourcePicker = ({os, osError, active, onPickArcader, onPickLocal, onClose,
                 </button>
             </div>
             <div className="sheet__list">
-                <motion.button
-                    className="drive"
-                    onClick={os ? onPickArcader : onRetry}
-                    whileTap={{scale: 0.98}}
-                >
-          <span className="drive__icon">
-            <Gamepad2 size={22}/>
-          </span>
-                    <span style={{minWidth: 0, flex: 1}}>
-            <div className="drive__name">{os ? os.name : "Arcader OS"}</div>
-            <div className="drive__meta">{arcaderMeta}</div>
-          </span>
-                    {active === "arcader" && <Check size={18}/>}
-                </motion.button>
+                {os ? (
+                    os.builds.map((build) => (
+                        <motion.button
+                            key={build.arch}
+                            className="drive"
+                            onClick={() => onPickArcader(build.arch)}
+                            whileTap={{scale: 0.98}}
+                        >
+              <span className="drive__icon">
+                <Gamepad2 size={22}/>
+              </span>
+                            <span style={{minWidth: 0, flex: 1}}>
+                <div className="drive__name">{`${os.name} · ${build.label}`}</div>
+                <div className="drive__meta">{`${os.version} · Stable`}</div>
+              </span>
+                            {activeKind === "arcader" && activeArch === build.arch && (
+                                <Check size={18}/>
+                            )}
+                        </motion.button>
+                    ))
+                ) : (
+                    <motion.button
+                        className="drive"
+                        onClick={onRetry}
+                        whileTap={{scale: 0.98}}
+                    >
+            <span className="drive__icon">
+              <Gamepad2 size={22}/>
+            </span>
+                        <span style={{minWidth: 0, flex: 1}}>
+              <div className="drive__name">Arcader OS</div>
+              <div className="drive__meta">{arcaderMeta}</div>
+            </span>
+                    </motion.button>
+                )}
 
                 <div className="drive is-disabled" aria-disabled="true">
           <span className="drive__icon">
@@ -57,7 +76,7 @@ const SourcePicker = ({os, osError, active, onPickArcader, onPickLocal, onClose,
               Pick an .iso or .img from this computer
             </div>
           </span>
-                    {active === "local" && <Check size={18}/>}
+                    {activeKind === "local" && <Check size={18}/>}
                 </motion.button>
             </div>
         </Modal>

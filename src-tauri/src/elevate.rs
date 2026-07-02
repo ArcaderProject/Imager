@@ -35,7 +35,16 @@ pub fn elevated_command(inv: &WorkerInvocation) -> Command {
     #[cfg(target_os = "linux")]
     {
         let mut cmd = Command::new("pkexec");
-        cmd.arg(&exe);
+        match std::env::var("APPIMAGE") {
+            Ok(appimage) if !appimage.is_empty() => {
+                cmd.arg("env");
+                cmd.arg("APPIMAGE_EXTRACT_AND_RUN=1");
+                cmd.arg(&appimage);
+            }
+            _ => {
+                cmd.arg(&exe);
+            }
+        }
         cmd.args(&argv);
         cmd
     }
